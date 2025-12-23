@@ -2,61 +2,150 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover" />
-  <title>WHO Test</title>
+  <title>WHO Assessment</title>
+
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="description" content="Discover your Values, Pillars, Ideal Emotion, and Trigger to define your WHO." />
+
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+
+  <!-- You can keep your existing font -->
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;700;800&display=swap" rel="stylesheet">
+
   <link rel="stylesheet" href="style.css" />
 </head>
-<body>
-  <header class="topbar">
-    <div class="brand">
-      <div class="logo">WHO</div>
-      <div>
-        <div class="title">Define Your Who</div>
-        <div class="subtitle">Quick clarity. No fluff.</div>
-      </div>
-    </div>
 
-    <div class="a11y">
-      <button class="btn ghost" id="fontDown" aria-label="Decrease font size">A−</button>
-      <input id="fontSlider" type="range" min="0.9" max="1.3" step="0.05" aria-label="Font size slider" />
-      <button class="btn ghost" id="fontUp" aria-label="Increase font size">A+</button>
+<body>
+
+  <!-- ===== HERO / LANDING ===== -->
+  <header class="hero">
+    <div class="container">
+      <h1>Define Your <span class="accent">WHO</span></h1>
+      <p class="lead">
+        Your WHO is your internal identity made up of your Values, Pillars and Ideal Emotion. It appears when you are operating at your best self. (Your external identity are your physical attributes, achievements, job title, family titles [someone's child, spouse, sibling, parent]).
+      </p>
+
+      <p class="lead">
+        Conflict is created by believing your internal identity was attacked. When you identify why you are upset, you can de-escalate, then operate as your best self to manage challenges.<br/>
+        </li><br/>
+      <b>This guided WHO Assessment helps you identify</b>:
+      </p>
+
+      <ul class="hero-list">
+        <li><b>Values</b> — your non-negotiables and how you think the world should act. Values are the core essence of who you are. They are the fuel that propels you to act. When you are living in alignment with your Values, they are what helps you to achieve your goals.</li>
+        <li><b>Pillars</b> — are characteristics that describe who you are as your happiest, most relaxed self.</li>
+        <li><b>Ideal Emotion</b> — what you want to feel every day.</li>
+        <li><b>Trigger</b> — the demoralizing inner critic telling you "I'm not .... enough".</li>
+      </ul>
+
+
+      
+      <button id="startBtn" class="btn btn-primary btn-lg">
+        Start the WHO Assessment
+      </button>
     </div>
   </header>
 
-  <main class="wrap">
-    <section class="card">
-      <div class="progress">
-        <div class="progress-bar" id="progressBar"></div>
-      </div>
 
-      <div class="step-header">
-        <h1 id="stepTitle">Loading…</h1>
-        <p class="hint" id="stepHint"></p>
-      </div>
 
-      <div id="stepBody"></div>
+  <!-- ===== HOW IT WORKS ===== -->
+  <section id="how" class="section">
+    <div class="container narrow">
+      <h2>How it works</h2>
 
-      <div class="actions">
-        <button class="btn ghost" id="backBtn">Back</button>
-        <div class="right-actions">
-          <button class="btn ghost" id="saveBtn" title="Saves to this device">Save</button>
-          <button class="btn primary" id="nextBtn">Next</button>
+      <ol class="how-list">
+        <li>
+          <b>Values</b><br/>
+        </li>
+        Road Test: Values, if crossed, evokes an emotion.<br/>
+        Practical Application: Clarity comes by identifying conflicting Values.
+        </li>
+        <li>
+          <b>Pillars</b><br/>
+        </li>
+        Road Test: If you took away any of these characteristics, you would operate as a shell of yourself.<br/>
+        Practical Application: Wear your Pillars as jackets to frame your mindset or frame a hard conversation.<br/>
+        </li>
+        <li>
+          <b>Ideal Emotion</b><br/>
+          </li>
+          Road Test: Living your Values and being your Pillars allows you to feel your Ideal Emotion.<br/>
+        </li>
+        <li>
+          <b>Trigger</b><br/>
+          Practical Application: When your demoralizing Trigger gets activated, pivot to your Pillars and use those words as your response team.<br/>
+        </li>
+      </ol>
+    </div>
+  </section>
+
+  <!-- ===== APP ===== -->
+  <main id="app" class="app" hidden>
+    <div class="container app-container">
+
+      <!-- Progress -->
+      <div class="progress-wrap">
+        <div class="progress-bar">
+          <div id="progressFill" class="progress-fill"></div>
         </div>
+        <div id="progressText" class="progress-text">Step 1 of 5</div>
       </div>
-    </section>
 
-   
-    <footer class="footer">
-      <div class="footer-links">
-        <a id="siteLink" href="http://MyWHOthoughts.com" target="_blank" rel="noopener">MyWHOthoughts.com</a>
-        <span class="dot">•</span>
-        <a id="bookLink" href="https://bit.ly/3PxJ3MD" target="_blank" rel="noopener">Book</a>
+      <!-- Dynamic Step Content -->
+      <div id="stepHost"></div>
+
+      <!-- Navigation -->
+      <div class="nav-buttons">
+        <button id="backBtn" class="btn btn-ghost">Back</button>
+        <button id="nextBtn" class="btn btn-primary">Next</button>
       </div>
-      <div class="footer-note">
-        Your answers save locally on your device unless you choose to email them.
-      </div>
-    </footer>
+
+    </div>
   </main>
+
+  <!-- ===== RESULTS ===== -->
+  <section id="results" class="section" hidden>
+    <div class="container narrow">
+      <h2><b>Your WHO Snapshot</b></h2>
+
+      <p class="subtitle">
+        This is your current snapshot — revisit the words of your WHO whenever you are not feeling your Ideal Emotion at the level you stated. Identify which Value or Pillar needs to be fed. Note your WHO words and have external and internal component. Externally, and if empathy was a Value, you can dial up empathy for others. Internally, how do you dial up empathy for yourself? 
+         <p class="subtitle">
+        <li>The results are not stored</li>
+      </p>
+
+      <div id="resultsBody"></div>
+
+      <div class="results-actions">
+        <button id="editBtn" class="btn btn-ghost">
+          Edit answers
+        </button>
+        <button id="copyBtn" class="btn btn-primary">
+          Copy summary
+        </button>
+        <button id="resetBtn" class="btn btn-danger">
+          Start over
+        </button>
+      </div>
+    </div>
+  </section>
+
+  <!-- ===== FOOTER ===== -->
+  <footer class="footer">
+    <div class="container">
+      <p>
+        © <span id="year"></span> 
+
+  https://www.mywhothoughts.com; Based on the book "It's the Thought That Counts, Mastering the Art of YOU vs you"
+      </p>
+    </div>
+  </footer>
+
+  <script>
+    // Simple year helper
+    document.getElementById("year").textContent = new Date().getFullYear();
+  </script>
 
   <script src="app.js"></script>
 </body>
