@@ -1,238 +1,179 @@
-/* ==========================
-   My WHO Thoughts Assessment™ (Official)
-   Static site + Google Form submit
-   Emailing handled by Google Apps Script
-   ========================== */
+const { useState } = React;
 
-const STORAGE_KEY = "who_assessment_official_v3";
+const TOTAL_STEPS = 12;
 
-/* ---------- SAFE CLONE ---------- */
-const clone = (o) => JSON.parse(JSON.stringify(o));
+function App() {
+  const [step, setStep] = useState(1);
+  const [fontScale, setFontScale] = useState(1);
 
-/* ---------- GOOGLE FORM CONFIG ---------- */
-const GOOGLE_FORM = {
-  enabled: true,
-  formResponseUrl: "https://docs.google.com/forms/d/e/YOUR_REAL_FORM_ID/formResponse",
-  entry: {
-    name: "entry.XXXX",
-    email: "entry.XXXX",
-    consent: "entry.XXXX",
-    confirmedValues: "entry.XXXX",
-    confirmedPillars: "entry.XXXX",
-    movedToValues: "entry.XXXX",
-    idealEmotionPrimary: "entry.XXXX",
-    idealEmotionSecondary: "entry.XXXX",
-    idealEmotionDesire: "entry.XXXX",
-    idealEmotionTarget: "entry.XXXX",
-    trigger: "entry.XXXX",
-    triggerFeeling: "entry.XXXX",
-    resetScript: "entry.XXXX"
-  }
-};
+  const next = () => setStep((s) => Math.min(s + 1, TOTAL_STEPS));
+  const back = () => setStep((s) => Math.max(s - 1, 1));
 
-/* ---------- OPTIONS ---------- */
+  return (
+    <div style={{ fontSize: `${fontScale}em` }}>
+      <header>
+        <div className="header-inner">
+          <div>
+            <strong>My WHO Thoughts Assessment™</strong>
+            <div className="muted">Define Your WHO • Quick clarity. No fluff.</div>
+          </div>
+          <div>
+            <button onClick={() => setFontScale((f) => Math.max(0.9, f - 0.1))}>
+              A−
+            </button>{" "}
+            <button onClick={() => setFontScale((f) => Math.min(1.3, f + 0.1))}>
+              A+
+            </button>
+          </div>
+        </div>
+        <div className="progress">
+          <div
+            className="progress-bar"
+            style={{ width: `${(step / TOTAL_STEPS) * 100}%` }}
+          />
+        </div>
+      </header>
 
-const VALUE_OPTIONS = [
-  "Accountability","Adventure","Authenticity","Considerate","Curiosity","Do-er",
-  "Efficient","Empathy","Ethics","Excellence","Fairness","Gratitude","Honesty",
-  "Impact","Independence","Inclusivity","Integrity","Justice","Kind","Loyalty",
-  "Open Mind","Perseverance","Reliability","Resilience","Respect","Self-Reliance",
-  "Service","Structure","Transparency"
-];
+      <main>
+        {step === 1 && <Welcome />}
+        {step === 2 && <DefineWHO />}
+        {step === 3 && <Start />}
+        {step === 4 && <ValuesDiscover />}
+        {step === 5 && <ValuesBuild />}
+        {step === 6 && <ValuesRoadTest />}
+        {step === 7 && <PillarsDiscover />}
+        {step === 8 && <PillarsRoadTest />}
+        {step === 9 && <InternalConflict />}
+        {step === 10 && <IdealEmotion />}
+        {step === 11 && <Trigger />}
+        {step === 12 && <Snapshot />}
+      </main>
 
-const PILLAR_OPTIONS = [
-  "Adventurer","Bold","Builder","Caretaker","Community","Compassion","Confident",
-  "Connection","Connector","Creative","Explorer","Faith","Family","Fierce",
-  "Grounded","Helper","Humor","Impact","Kind","Listener","Love","Optimist",
-  "Passion","Peace","Playful","Present","Service"
-];
-
-const IDEAL_EMOTION_OPTIONS = [
-  "Calm","Clear","Connected","Content","Energized","Fulfilled","Freedom",
-  "Grateful","Inspired","Joy","Peace","Present","Serenity"
-];
-
-const TRIGGER_OPTIONS = [
-  "Enough","Fast Enough","Good Enough","Heard","Respected","Seen","Valued"
-];
-
-/* ---------- STEPS ---------- */
-
-const STEPS = [
-  { key:"welcome" },
-  { key:"define" },
-  { key:"start" },
-  { key:"values_discover" },
-  { key:"values_roadtest" },
-  { key:"pillars_discover" },
-  { key:"pillars_roadtest" },
-  { key:"ideal_emotion" },
-  { key:"trigger" },
-  { key:"snapshot" },
-  { key:"submitted" }
-];
-
-/* ---------- DEFAULT STATE ---------- */
-
-const DEFAULT_STATE = {
-  stepIndex: 0,
-  user: { name:"", email:"", consent:false },
-  values: {
-    proudMoment:"",
-    proudWhy:"",
-    upsetMoment:"",
-    upsetWhy:"",
-    candidates:[],
-    roadtest:{},
-    confirmed:[]
-  },
-  pillars: {
-    bestMoment:"",
-    candidates:[],
-    roadtest1:{},
-    roadtest2:{},
-    confirmed:[],
-    movedToValues:[]
-  },
-  idealEmotion: {
-    primary:"",
-    secondary:"",
-    desireLevel:5
-  },
-  trigger: {
-    label:"",
-    feeling:"",
-    resetScript:""
-  },
-  submit: {
-    status:"idle",
-    message:""
-  }
-};
-
-/* ---------- STATE ---------- */
-
-let state = loadState();
-
-/* ---------- STORAGE ---------- */
-
-function saveState(){
-  localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+      <footer>
+        <div className="footer-inner">
+          <button onClick={back} disabled={step === 1}>
+            Back
+          </button>
+          <span className="muted">
+            © {new Date().getFullYear()} My WHO Thoughts Assessment™
+          </span>
+          <button onClick={next} disabled={step === TOTAL_STEPS}>
+            Next
+          </button>
+        </div>
+      </footer>
+    </div>
+  );
 }
 
-function loadState(){
-  try{
-    const raw = localStorage.getItem(STORAGE_KEY);
-    return raw ? { ...clone(DEFAULT_STATE), ...JSON.parse(raw) } : clone(DEFAULT_STATE);
-  }catch{
-    return clone(DEFAULT_STATE);
-  }
-}
+/* ---- Pages ---- */
 
-/* ---------- HELPERS ---------- */
+const Section = ({ title, children }) => (
+  <section>
+    <h2>{title}</h2>
+    {children}
+  </section>
+);
 
-const uniq = (a) => [...new Set(a)];
-const clamp = (n,min,max)=>Math.max(min,Math.min(max,n));
+const Welcome = () => (
+  <Section title="Welcome">
+    <p>Thank you for taking the WHO Thoughts Assessment™.</p>
+    <p>
+      When your nervous system is regulated, you respond instead of react. You
+      choose instead of spiral.
+    </p>
+    <p className="muted">— Dana Lynn Bernstein, PMP, PCC</p>
+  </Section>
+);
 
-/* ---------- NAV ---------- */
+const DefineWHO = () => (
+  <Section title="Define Your WHO">
+    <ul>
+      <li>Values — Your guardrails</li>
+      <li>Pillars — Your energy source</li>
+      <li>Ideal Emotion — Your compass</li>
+      <li>Trigger — Your warning signal</li>
+    </ul>
+  </Section>
+);
 
-function setStep(i){
-  state.stepIndex = clamp(i,0,STEPS.length-1);
-  saveState();
-  render();
-}
+const Start = () => (
+  <Section title="Start">
+    <input placeholder="Your name" />
+    <input placeholder="Your email (optional)" />
+    <p className="muted">
+      Email is optional. You may receive your results if you choose.
+    </p>
+  </Section>
+);
 
-function next(){ setStep(state.stepIndex+1); }
-function back(){ setStep(state.stepIndex-1); }
+const ValuesDiscover = () => (
+  <Section title="Step 1 of 6: Values — Discover">
+    <textarea placeholder="At any point in your life, when were you most proud of yourself?" />
+    <textarea placeholder="Why were you proud?" />
+    <textarea placeholder="When were you most angry, frustrated, or upset?" />
+  </Section>
+);
 
-/* ---------- COMPUTATION (PURE) ---------- */
+const ValuesBuild = () => (
+  <Section title="Build Your Values">
+    <input placeholder="Add a Value and press Enter" />
+  </Section>
+);
 
-function computeValues(){
-  const confirmed = Object.entries(state.values.roadtest)
-    .filter(([_,v])=>v===true)
-    .map(([k])=>k);
+const ValuesRoadTest = () => (
+  <Section title="Step 2 of 6: Values Road Test">
+    <p>If someone violates this Value, do you feel upset or frustrated?</p>
+  </Section>
+);
 
-  return uniq([...confirmed, ...state.pillars.movedToValues]);
-}
+const PillarsDiscover = () => (
+  <Section title="Step 3 of 6: Pillars — Discover">
+    <textarea placeholder="When were you happiest and most YOU?" />
+    <input placeholder="Add a Pillar and press Enter" />
+  </Section>
+);
 
-function computePillars(){
-  const moved = Object.entries(state.pillars.roadtest1)
-    .filter(([_,v])=>v===true)
-    .map(([k])=>k);
+const PillarsRoadTest = () => (
+  <Section title="Step 4 of 6: Pillars Road Test">
+    <p>If this characteristic were removed, would you be a shell of yourself?</p>
+  </Section>
+);
 
-  const kept = Object.entries(state.pillars.roadtest2)
-    .filter(([_,v])=>v===true)
-    .map(([k])=>k);
+const InternalConflict = () => (
+  <Section title="Internal Conflict & Choice">
+    <p>
+      When emotions arise, intentionally choose which Value or Pillar leads your
+      response.
+    </p>
+  </Section>
+);
 
-  return {
-    movedToValues: uniq(moved),
-    confirmed: uniq(kept)
-  };
-}
+const IdealEmotion = () => (
+  <Section title="Step 5 of 6: Ideal Emotion">
+    <select>
+      <option>Select your Ideal Emotion</option>
+      <option>Calm</option>
+      <option>Clear</option>
+      <option>Joy</option>
+      <option>Peace</option>
+    </select>
+    <input type="range" min="1" max="10" />
+  </Section>
+);
 
-/* ---------- SUBMISSION ---------- */
+const Trigger = () => (
+  <Section title="Step 6 of 6: Trigger">
+    <input placeholder="I'm not..." />
+    <textarea placeholder="Reset script (optional)" />
+  </Section>
+);
 
-async function submit(){
-  const pillarResult = computePillars();
-  const valuesResult = computeValues();
+const Snapshot = () => (
+  <Section title="Your WHO Snapshot">
+    <p>Your Values, Pillars, Ideal Emotion, and Trigger will appear here.</p>
+  </Section>
+);
 
-  state.submit = { status:"submitting", message:"Sending your results…" };
-  saveState();
-  setStep(STEPS.length-1);
-
-  const fd = new FormData();
-  fd.append(GOOGLE_FORM.entry.name, state.user.name);
-  fd.append(GOOGLE_FORM.entry.email, state.user.email);
-  fd.append(GOOGLE_FORM.entry.consent, state.user.consent ? "Yes":"No");
-  fd.append(GOOGLE_FORM.entry.confirmedValues, valuesResult.join(", "));
-  fd.append(GOOGLE_FORM.entry.confirmedPillars, pillarResult.confirmed.join(", "));
-  fd.append(GOOGLE_FORM.entry.movedToValues, pillarResult.movedToValues.join(", "));
-  fd.append(GOOGLE_FORM.entry.idealEmotionPrimary, state.idealEmotion.primary);
-  fd.append(GOOGLE_FORM.entry.idealEmotionSecondary, state.idealEmotion.secondary);
-  fd.append(GOOGLE_FORM.entry.idealEmotionDesire, String(state.idealEmotion.desireLevel));
-  fd.append(GOOGLE_FORM.entry.idealEmotionTarget, "8");
-  fd.append(GOOGLE_FORM.entry.trigger, state.trigger.label);
-  fd.append(GOOGLE_FORM.entry.triggerFeeling, state.trigger.feeling);
-  fd.append(GOOGLE_FORM.entry.resetScript, state.trigger.resetScript);
-
-  try{
-    await fetch(GOOGLE_FORM.formResponseUrl,{
-      method:"POST",
-      mode:"no-cors",
-      body:fd
-    });
-
-    state.submit = {
-      status:"success",
-      message:"Your results were sent successfully."
-    };
-  }catch{
-    state.submit = {
-      status:"error",
-      message:"Submission failed. Please try again."
-    };
-  }
-
-  saveState();
-  render();
-}
-
-/* ---------- ESCAPE ---------- */
-
-function esc(s){
-  return String(s||"")
-    .replaceAll("&","&amp;")
-    .replaceAll("<","&lt;")
-    .replaceAll(">","&gt;")
-    .replaceAll('"',"&quot;");
-}
-
-/* ---------- RENDER (stub – your existing HTML renderer plugs here) ---------- */
-
-function render(){
-  // KEEP your existing renderStep(), renderNav(), UI markup
-  // This refactor only fixes logic + state safety
-}
-
-/* ---------- INIT ---------- */
-render();
+/* Render */
+ReactDOM.createRoot(document.getElementById("root")).render(<App />);
