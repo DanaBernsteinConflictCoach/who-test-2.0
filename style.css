@@ -1,3 +1,68 @@
+:root {
+  --mint: #ECFBEB;
+  --text: #1f2937;
+  --surface: #ffffff;
+}
+
+body {
+  margin: 0;
+  font-family: system-ui, sans-serif;
+  background: var(--mint);
+  color: var(--text);
+}
+
+.app-header {
+  text-align: center;
+  padding: 2rem;
+}
+
+.progress-container {
+  height: 6px;
+  background: rgba(0,0,0,.1);
+}
+
+#progressBar {
+  height: 100%;
+  width: 0%;
+  background: #4b5563;
+}
+
+.screen {
+  display: none;
+  background: var(--surface);
+  padding: 2.5rem;
+  margin: 2rem auto;
+  max-width: 760px;
+  border-radius: 16px;
+}
+
+.screen.active {
+  display: block;
+}
+
+textarea, input, select {
+  width: 100%;
+  margin: .5rem 0 1.5rem;
+}
+
+.nav {
+  display: flex;
+  justify-content: space-between;
+  padding: 1rem 2rem;
+}
+
+footer {
+  text-align: center;
+  padding: 1rem;
+  font-size: .85rem;
+}
+
+
+
+
+
+
+
 /* ==========================
    My WHO Thoughts Assessment™
    Official Stylesheet
