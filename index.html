@@ -3,64 +3,160 @@
 <head>
   <meta charset="UTF-8" />
   <title>My WHO Thoughts Assessment™</title>
-
-  <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <meta name="description" content="Define your WHO — Values, Pillars, Ideal Emotion, and Trigger." />
-
-  <!-- Basic reset / font -->
-  <style>
-    *, *::before, *::after { box-sizing: border-box; }
-    body {
-      margin: 0;
-      font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI",
-        Roboto, Helvetica, Arial, sans-serif;
-      background: #f6f5f3;
-      color: #1f2933;
-      line-height: 1.45;
-    }
-  </style>
-
-  <!-- Your main stylesheet -->
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <link rel="stylesheet" href="style.css" />
 </head>
-
 <body>
-  <!-- Header -->
-  <header class="siteHeader">
-    <div class="wrap">
-      <div class="brand">
-        <div class="brandTitle">My WHO Thoughts Assessment™</div>
-        <div class="brandSub">Define Your WHO</div>
-      </div>
 
-      <div class="headerActions">
-        <button id="btnReset" class="ghost" type="button">
-          Reset
-        </button>
-      </div>
-    </div>
-  </header>
+<header class="app-header">
+  <h1>My WHO Thoughts Assessment™</h1>
+  <h2>Define Your WHO</h2>
+  <p class="tagline">Quick clarity. No fluff.</p>
 
-  <!-- Main App Mount -->
-  <main class="wrap">
-    <!-- JS renders everything inside this -->
-    <div id="app"></div>
-  </main>
+  <div class="font-controls">
+    <button onclick="adjustFont(-1)">A−</button>
+    <button onclick="adjustFont(1)">A+</button>
+  </div>
+</header>
 
-  <!-- Footer -->
-  <footer class="siteFooter">
-    <div class="wrap footerInner">
-      <div class="small">
-        © <span id="year"></span> Dana Lynn Bernstein, PMP, PCC
-      </div>
-      <div class="small">
-        The Conflict Resolution Coach
-      </div>
-    </div>
-  </footer>
+<div class="progress-container">
+  <div id="progressBar"></div>
+</div>
 
-  <!-- App Script -->
-  <!-- IMPORTANT: must be loaded AFTER #app exists -->
-  <script src="app.js"></script>
+<main id="app">
+
+  <!-- SCREEN 0 — WELCOME -->
+  <section class="screen active">
+    <p>Thank you for taking the WHO Thoughts Assessment™.</p>
+    <p>Take a moment to imagine what’s possible when you stay anchored in your Values, operate from your best self, and recognize the thoughts that quietly pull you off course.</p>
+    <p>When your nervous system is regulated, you are powerful. You respond instead of react. You choose instead of spiral.</p>
+    <p>Self-command isn’t about perfection — it’s about awareness. It’s about noticing when you’ve drifted from your WHO and knowing how to return.</p>
+    <p>My goal is to help you uncover and celebrate the best parts of what make you you — the strengths and natural qualities that already exist within you — and show you how to use them to move through conflict with clarity and confidence.</p>
+    <p>Now imagine a world where more of us faced challenges this way: grounded, intentional, and self-led.</p>
+    <p>The WHO Thoughts Assessment™ is your invitation to reflect, reconnect, and reclaim the thoughts that shape your life.</p>
+    <p class="signature">— Dana Lynn Bernstein, PMP, PCC<br/>The Conflict Resolution Coach</p>
+    <p>Additional exercises and reflections in my book, <em>It’s the Thought That Counts: Mastering the Art of YOU vs You</em></p>
+    <p>A portion of book proceeds support Girl Scouts</p>
+    <button onclick="startAssessment()">Begin</button>
+  </section>
+
+  <!-- STEP 1 -->
+  <section class="screen">
+    <p>Conflict is best solved by breaking it into smaller parts. External conflict (tacticals about what to do/how to do something) and internal conflict (your thoughts about why you labeled something a conflict).</p>
+    <p>Identity also has an external (physical attributes, roles, titles, achievements) and internal component (your WHO).</p>
+    <p>Your WHO is defined by:</p>
+    <ul>
+      <li>Values — Your guardrails</li>
+      <li>Pillars — Your energy source</li>
+      <li>Ideal Emotion — Your compass</li>
+      <li>Trigger — Your warning signal</li>
+    </ul>
+    <p>Conflict happens when you believe your WHO has been threatened.</p>
+    <p>In 6 steps, you’ll identify:</p>
+    <p><strong>Values:</strong> Your non-negotiables and how you think the world should act. When you are living in alignment with your Values, they are what help you to achieve your goals.</p>
+    <p><strong>Pillars:</strong> Your natural characteristics that describe who you are as your happiest, most relaxed self. They are your strengths, and when you are in a flow state.</p>
+    <p><strong>Ideal Emotion:</strong> What you want to feel each day. Your emotional compass.</p>
+    <p><strong>Trigger:</strong> The “I’m not ___ enough” story that pulls you off course.</p>
+  </section>
+
+  <!-- STEP 2 -->
+  <section class="screen">
+    <h3>Step 1 of 6: Values (Discover)</h3>
+    <label>Prompt A: Proud Moment</label>
+    <textarea></textarea>
+    <label>Why were you proud?</label>
+    <textarea></textarea>
+    <label>Prompt B: Upset / Anger / Frustrated Moment</label>
+    <textarea></textarea>
+    <label>What exactly bothered you / Why did the behavior bother you?</label>
+    <textarea></textarea>
+    <h3>Build your Values candidate list</h3>
+    <p>Reflect on what matters to you. What are the non-negotiable rules that drive your success? Tap to select 3–6 of your Values OR add custom ones. We’ll road-test on the next step.</p>
+    <input placeholder="Add a candidate (press Enter)" />
+  </section>
+
+  <!-- STEP 3 -->
+  <section class="screen">
+    <h3>Step 2 of 6: Values Evoke Emotions (Road Test)</h3>
+    <p>Road test each candidate. Values, when crossed, evoke an emotion.</p>
+    <p>If someone violates this, do you feel upset / angry / frustrated?</p>
+    <p>YES = it’s a Value (keep)</p>
+    <p>NO = it’s not a Value (remove from the list)</p>
+    <p>Practical Application:</p>
+    <p>Clarity comes by identifying conflicting Values.</p>
+    <p>Use your Values as guardrails when making tough decisions.</p>
+    <p>Let them guide your boundaries in relationships and work.</p>
+    <p>By identifying these candidates, you can more easily de-escalate your emotions.</p>
+  </section>
+
+  <!-- STEP 4 -->
+  <section class="screen">
+    <h3>Step 3 of 6: Pillars (Discover)</h3>
+    <p>Are positive core characteristics that describe you at your best (they are not tied to accomplishment or how you think you "should be"). You are great as you are!</p>
+    <p>When were you your happiest and most YOU?</p>
+    <textarea></textarea>
+    <h3>Step 4 of 6: Pillars (Road Test)</h3>
+    <p>If someone crosses this characteristic, do you get angry/frustrated/upset?</p>
+    <p>If you took these characteristics away, would you be a shell of yourself?</p>
+    <p>Practical Application:</p>
+    <p>Lead from your unique strengths.</p>
+    <p>Lean on your Pillars when challenges feel heavy.</p>
+  </section>
+
+  <!-- STEP 5 -->
+  <section class="screen">
+    <h3>Internal Conflict & Choice</h3>
+    <p>Internal conflict comes from Competing WHO traits.</p>
+    <h3>Step 5 of 6: Ideal Emotion</h3>
+    <p>Your Ideal Emotion is what you want to feel each day.</p>
+    <select>
+      <option>Calm</option><option>Clear</option><option>Joy</option><option>Peace</option>
+    </select>
+    <input type="range" min="1" max="10" />
+    <h3>Step 6 of 6: Trigger (Anti-WHO)</h3>
+    <p>Your Trigger is one loud “I’m not...” story that surfaces when you feel under pressure.</p>
+    <input placeholder="I'm not..." />
+    <textarea placeholder="Optional Reset Script"></textarea>
+  </section>
+
+  <!-- STEP 6 -->
+  <section class="screen">
+    <h3>Your WHO Snapshot</h3>
+    <p>Values — Your guardrails</p>
+    <p>Pillars — Your energy source</p>
+    <p>Ideal Emotion — Your compass</p>
+    <p>Trigger — Your warning signal</p>
+    <p>Refine over time. Awareness builds self-command.</p>
+  </section>
+
+  <!-- OPTIONAL POST COMPLETION -->
+  <section class="screen">
+    <h3>Food Check (Optional)</h3>
+    <input placeholder="My favorite food / meal is:" />
+    <input placeholder="I cannot stomach this food / consistency / beverage:" />
+    <p>The food you fill your stomach with is no different than the thoughts you fill your head with.</p>
+    <h3>Next Step</h3>
+    <p>This week, lead with:</p>
+    <p>One Value</p>
+    <p>One Pillar</p>
+    <p>Make the World a Better Place*</p>
+    <p>*Girl Scouts motto • Portion of book proceeds support Girl Scouts</p>
+  </section>
+
+</main>
+
+<div class="nav">
+  <button onclick="prev()">Back</button>
+  <button onclick="next()">Next</button>
+</div>
+
+<footer>
+  © <span id="year"></span> My WHO Thoughts Assessment™ — All rights reserved<br/>
+  <a href="https://www.MyWHOthoughts.com">www.MyWHOthoughts.com</a> •
+  <a href="https://bit.ly/3PxJ3MD">Book Link</a>
+</footer>
+
+<script src="app.js"></script>
 </body>
 </html>
+
