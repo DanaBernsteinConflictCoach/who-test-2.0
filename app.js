@@ -1,732 +1,1066 @@
-const STORAGE_KEY = "who_assessment_v2";
-const MAIN_SITE = "http://MyWHOthoughts.com";
-const BOOK_LINK = "https://bit.ly/3PxJ3MD";
+/* ==========================
+   My WHO Thoughts Assessment™ (Official)
+   Static site + Google Form submit
+   Emailing is handled by Google Apps Script on the response sheet.
+   ========================== */
 
-const DEFAULTS = {
-  meta: { name: "", email: "" },
-  fontScale: 1,
-  values: [],
-  pillars: [],
-  idealEmotion: "",
-  triggers: [
-    { trigger: "", response: "" },
-    { trigger: "", response: "" },
-    { trigger: "", response: "" },
-  ],
-  food: { favorite: "", hate: "" },
+const STORAGE_KEY = "who_assessment_official_v2";
+
+/**
+ * REQUIRED CONFIG (you must fill these):
+ * 1) formResponseUrl must be the Google Form "formResponse" endpoint
+ * 2) entry IDs must match your Form questions
+ *
+ * How to get entry IDs:
+ * - Open Google Form > Preview
+ * - View page source
+ * - Search for "entry."
+ */
+const GOOGLE_FORM = {
+  enabled: true,
+  formResponseUrl: "https://docs.google.com/forms/d/e/PASTE_YOUR_FORM_ID/formResponse",
+  entry: {
+    // Basics
+    name: "entry.0000000000",
+    email: "entry.0000000001",
+    consent: "entry.0000000002",
+
+    // Results
+    confirmedValues: "entry.0000000003",
+    confirmedPillars: "entry.0000000004",
+    movedToValues: "entry.0000000005",
+
+    idealEmotionPrimary: "entry.0000000006",
+    idealEmotionSecondary: "entry.0000000007",
+    idealEmotionDesire: "entry.0000000008",   // 1–10
+    idealEmotionTarget: "entry.0000000009",   // always 8
+
+    trigger: "entry.0000000010",
+    triggerFeeling: "entry.0000000011",
+    resetScript: "entry.0000000012"
+  }
 };
 
 const VALUE_OPTIONS = [
-  "Accountability","Adventure","Authenticity","Considerate","Curiosity","Do-er","Efficient","Empathy","Ethics",
-  "Excellence","Fairness","Gratitude","Honesty","Impact","Independence","Inclusivity","Integrity","Justice","Kind",
-  "Loyalty","Open Mind","Perseverance","Reliability","Resilience","Respect","Self Reliance","Service","Structure","Transparency"
- ];
+  "Accountability","Adventure","Authenticity","Considerate","Curiosity","Do-er",
+  "Efficient","Empathy","Ethics","Excellence","Fairness","Gratitude","Honesty",
+  "Impact","Independence","Inclusivity","Integrity","Justice","Kind","Loyalty",
+  "Open Mind","Perseverance","Reliability","Resilience","Respect","Self-Reliance",
+  "Service","Structure","Transparency"
+];
 
 const PILLAR_OPTIONS = [
-  "Adventurer","Bold","Builder","Caretaker","Community","Compassion","Confident","Connection","Connector",
-  "Considerate","Creative","Earthy","Explorer","Faith","Family","Fierce","Fun","Goofy","Grounded","Gratitude","Helper","Humor","Introspective","Impact",
-  "Kind","Laughter","Limitless","Listener","Love","Nerdy","Open Mind","Optimist","Passion","Patient","Peace","Playful",
-  "Present","Problem Solver","Sarcastic","Service"
+  "Adventurer","Bold","Builder","Caretaker","Community","Compassion","Confident",
+  "Connection","Connector","Considerate","Creative","Earthy","Empathy","Explorer",
+  "Faith","Family","Fierce","Fun","Goofy","Grounded","Gratitude","Helper","Humor",
+  "Introspective","Impact","Kind","Laughter","Limitless","Listener","Love","Nerdy",
+  "Open Mind","Optimist","Passion","Patient","Peace","Playful","Present","Problem Solver",
+  "Sarcastic","Service"
 ];
 
-const EMOTION_OPTIONS = [
+const IDEAL_EMOTION_OPTIONS = [
   "Calm","Carefree","Clear","Connected","Content","Energized","Fulfilled","Freedom",
-  "Grateful","Happiness","Inspired","Joy","Peace","Playful","Present","Serenity"
- ];
+  "Grateful","Gratitude","Happiness","Inspired","Joy","Peace","Playful","Present","Serenity"
+];
 
 const TRIGGER_OPTIONS = [
-  "I’m not…","Capable","Enough","Fast Enough","Good Enough","Heard","Listened to",
-  "Respected","Seen","Smart","Valued","Wanted"
-  ];
-
-let state = loadState();
-let stepIndex = 0;
-
-const elTitle = document.getElementById("stepTitle");
-const elHint = document.getElementById("stepHint");
-const elBody = document.getElementById("stepBody");
-const elBack = document.getElementById("backBtn");
-const elNext = document.getElementById("nextBtn");
-const elSave = document.getElementById("saveBtn");
-const elProgress = document.getElementById("progressBar");
-
-const elSite = document.getElementById("siteLink");
-const elBook = document.getElementById("bookLink");
-
-elSite.href = MAIN_SITE;
-elBook.href = BOOK_LINK;
-
-// Font controls
-const elFontDown = document.getElementById("fontDown");
-const elFontUp = document.getElementById("fontUp");
-const elFontSlider = document.getElementById("fontSlider");
-
-console.log(
-  elTitle, elHint, elBody,
-  elBack, elNext, elSave,
-  elProgress, elSite, elBook,
-  elFontDown, elFontUp, elFontSlider
-);
-
-function applyFontScale(scale){
-  const clamped = Math.max(0.9, Math.min(1.3, Number(scale)));
-  document.documentElement.style.setProperty("--fontScale", clamped);
-  state.fontScale = clamped;
-  elFontSlider.value = String(clamped);
-  saveState();
-}
-
-elFontSlider.value = String(state.fontScale ?? 1);
-applyFontScale(state.fontScale ?? 1);
-
-elFontDown.addEventListener("click", () => applyFontScale((state.fontScale ?? 1) - 0.05));
-elFontUp.addEventListener("click", () => applyFontScale((state.fontScale ?? 1) + 0.05));
-elFontSlider.addEventListener("input", (e) => applyFontScale(e.target.value));
-
-const steps = [
-  {
-    id: "meta",
-    title: "Start",
-    hint: "Add your name. Email is optional (only used if you choose to email yourself your results).",
-    render: renderMeta,
-    validate: validateMeta,
-  },
-  {
-    id: "values",
-    title: "Page 1 — Define your Values",
-    hint: "Tap to select your Values. Keep it simple: pick 4–6 that, when crossed, evokes an emotion.",
-    render: () => renderMultiSelect({
-      key: "values",
-      options: VALUE_OPTIONS,
-      allowCustom: true,
-      customLabel: "Add your own value",
-      maxHint: "Reflect on what matters to you. What are the non-negotiable rules that drive your success?",
-    }),
-    validate: () => (state.values.length >= 3) || "Pick at least 3 values.",
-  },
-  {
-    id: "pillars",
-    title: "Page 2 — Define your Pillars",
-    hint: "Pillars are characteristics that describe who you are as your happiest, most relaxed self.",
-    render: () => renderMultiSelect({
-      key: "pillars",
-      options: PILLAR_OPTIONS,
-      allowCustom: true,
-      customLabel: "List core characteristcs that describe you, and without them, you would operate as a shell of yourself (your own words)",
-      maxHint: "Pick 4–6 if you can.",
-    }),
-    validate: () => (state.pillars.length >= 2) || "Pick at least 2 pillars.",
-  },
-  {
-    id: "emotion",
-    title: "Page 3 — Define your Ideal Emotion",
-    hint: "At the end of the day, how would you like to feel? (Yes, it is ok to have 2 Ideal Emotions). You can choose one from the bank or write your own.",
-    render: renderIdealEmotion,
-    validate: () => (String(state.idealEmotion || "").trim().length > 1) || "Choose or write your ideal emotion.",
-  },
-  {
-    id: "triggers",
-    title: "Page 4 — Triggers → Responses",
-    hint: "The demoralizing inner critic telling you \"I'm not … enough\" — and the response you’d rather choose instead.",
-
-    render: renderTriggers,
-    validate: validateTriggers,
-  },
-  {
-    id: "food",
-    title: "Food Check",
-    hint: "Quick metaphor check. This is optional, but it makes the framework stick.",
-    render: renderFood,
-    validate: () => true,
-  },
-  {
-    id: "results",
-    title: "Reference Guide",
-    hint: "This is your WHO. Save it, copy it, or email it to yourself.",
-    render: renderResults,
-    validate: () => true,
-  },
+  "Capable","Enough","Fast Enough","Good Enough","Heard","Listened to","Respected",
+  "Seen","Smart Enough","Valued","Wanted"
 ];
 
-init();
+const STEPS = [
+  { key:"welcome", title:"Welcome" },
+  { key:"define", title:"Define Your WHO" },
+  { key:"start", title:"Start" },
+  { key:"values_discover", title:"Step 1 of 6: Values (Discover)" },
+  { key:"values_roadtest", title:"Step 2 of 6: Values (Road Test)" },
+  { key:"pillars_discover", title:"Step 3 of 6: Pillars (Discover)" },
+  { key:"pillars_roadtest", title:"Step 4 of 6: Pillars (Road Test)" },
+  { key:"ideal_emotion", title:"Step 5 of 6: Ideal Emotion" },
+  { key:"trigger", title:"Step 6 of 6: Trigger (Anti-WHO)" },
+  { key:"snapshot", title:"Your WHO Snapshot" },
+  { key:"submitted", title:"Submitted" }
+];
 
-function init(){
-  elBack.addEventListener("click", () => go(-1));
-  elNext.addEventListener("click", () => go(1));
-  elSave.addEventListener("click", () => {
+const DEFAULT_STATE = {
+  stepIndex: 0,
+
+  user: { name:"", email:"", consent:false },
+
+  values: {
+    proudMoment: "",
+    proudWhy: "",
+    upsetMoment: "",
+    upsetWhy: "",
+    candidates: [],
+    confirmed: [],
+    roadtestAnswers: {} // {value: true/false}
+  },
+
+  pillars: {
+    bestMoment: "",
+    candidates: [],
+    confirmed: [],
+    movedToValues: [],
+    roadtest1: {}, // {pillar: true/false} true => move to values
+    roadtest2: {}  // {pillar: true/false} true => keep
+  },
+
+  idealEmotion: {
+    primary: "",
+    secondary: "",
+    targetLevel: 8,
+    desireLevel: 5 // slider 1-10
+  },
+
+  trigger: {
+    label: "",
+    feeling: "",
+    resetScript: ""
+  },
+
+  lastSubmit: {
+    status: "idle", // idle | submitting | success | error
+    message: ""
+  }
+};
+
+let state = loadState();
+
+const elApp = document.getElementById("app");
+const elYear = document.getElementById("year");
+if (elYear) elYear.textContent = new Date().getFullYear();
+
+const btnReset = document.getElementById("btnReset");
+if (btnReset){
+  btnReset.addEventListener("click", () => {
+    if (!confirm("Reset all answers?")) return;
+    state = structuredClone(DEFAULT_STATE);
     saveState();
-    toast("Saved on this device.");
+    render();
   });
-
-  renderStep();
 }
 
-function go(delta){
-  const step = steps[stepIndex];
-  const res = step.validate?.();
-  if (res !== true){
-    toast(res || "Fix the step before continuing.");
+function saveState(){ localStorage.setItem(STORAGE_KEY, JSON.stringify(state)); }
+
+function loadState(){
+  try{
+    const raw = localStorage.getItem(STORAGE_KEY);
+    if (!raw) return structuredClone(DEFAULT_STATE);
+    const parsed = JSON.parse(raw);
+    return { ...structuredClone(DEFAULT_STATE), ...parsed };
+  }catch{
+    return structuredClone(DEFAULT_STATE);
+  }
+}
+
+function clamp(n, min, max){ return Math.max(min, Math.min(max, n)); }
+function uniq(arr){ return [...new Set(arr.map(s => String(s).trim()).filter(Boolean))]; }
+function removeItem(arr, item){ return arr.filter(x => x !== item); }
+
+function setStep(idx){
+  state.stepIndex = clamp(idx, 0, STEPS.length - 1);
+  saveState();
+  render();
+}
+
+function nextStep(){
+  if (!canProceed()) return;
+  setStep(state.stepIndex + 1);
+}
+function prevStep(){ setStep(state.stepIndex - 1); }
+
+function progressPercent(){
+  const effectiveMax = STEPS.length - 2; // exclude "submitted"
+  const idx = Math.min(state.stepIndex, effectiveMax);
+  return Math.round((idx / effectiveMax) * 100);
+}
+
+function canProceed(){
+  const k = STEPS[state.stepIndex].key;
+
+  if (k === "start"){
+    return state.user.name.trim().length > 0;
+  }
+  if (k === "values_discover"){
+    return state.values.candidates.length >= 3 && state.values.candidates.length <= 6;
+  }
+  if (k === "values_roadtest"){
+    const c = state.values.candidates;
+    return c.length > 0 && c.every(v => typeof state.values.roadtestAnswers[v] === "boolean");
+  }
+  if (k === "pillars_discover"){
+    return state.pillars.candidates.length >= 3 && state.pillars.candidates.length <= 6;
+  }
+  if (k === "pillars_roadtest"){
+    const c = state.pillars.candidates;
+    if (!(c.length > 0 && c.every(p => typeof state.pillars.roadtest1[p] === "boolean"))) return false;
+    const remaining = c.filter(p => state.pillars.roadtest1[p] === false);
+    return remaining.every(p => typeof state.pillars.roadtest2[p] === "boolean");
+  }
+  if (k === "ideal_emotion"){
+    return state.idealEmotion.primary.trim().length > 0 && state.idealEmotion.desireLevel >= 1;
+  }
+  if (k === "trigger"){
+    return state.trigger.label.trim().length > 0 && state.trigger.feeling.trim().length > 0;
+  }
+  return true;
+}
+
+function computeConfirmedValues(){
+  const confirmed = [];
+  for (const v of state.values.candidates){
+    if (state.values.roadtestAnswers[v] === true) confirmed.push(v);
+  }
+  state.values.confirmed = uniq(confirmed);
+  state.values.confirmed = uniq([...state.values.confirmed, ...(state.pillars.movedToValues || [])]);
+}
+
+function computePillarsOutcomes(){
+  const movedToValues = [];
+  const remaining = [];
+
+  for (const p of state.pillars.candidates){
+    if (state.pillars.roadtest1[p] === true) movedToValues.push(p);
+    else remaining.push(p);
+  }
+
+  const confirmed = [];
+  for (const p of remaining){
+    if (state.pillars.roadtest2[p] === true) confirmed.push(p);
+  }
+
+  state.pillars.movedToValues = uniq(movedToValues);
+  state.pillars.confirmed = uniq(confirmed);
+
+  computeConfirmedValues();
+}
+
+function toggleBoundedArray(group, field, value, max){
+  const arr = state[group][field];
+  if (arr.includes(value)){
+    state[group][field] = removeItem(arr, value);
+  } else {
+    if (arr.length >= max) return;
+    state[group][field] = uniq([...arr, value]);
+  }
+  saveState(); render();
+}
+
+function addBoundedArray(group, field, raw, max){
+  const v = String(raw || "").trim();
+  if (!v) return;
+
+  const arr = state[group][field];
+  if (!arr.includes(v) && arr.length >= max) return;
+
+  state[group][field] = uniq([...arr, v]);
+  saveState(); render();
+
+  setTimeout(() => {
+    const el = document.getElementById(group === "values" ? "addValue" : "addPillar");
+    if (el) el.value = "";
+  }, 0);
+}
+
+function render(){
+  const step = STEPS[state.stepIndex];
+  elApp.innerHTML = `
+    ${renderProgress()}
+    ${renderStep(step.key)}
+    ${renderNav()}
+  `;
+  wireCommonHandlers();
+}
+
+function renderProgress(){
+  const pct = progressPercent();
+  const step = STEPS[state.stepIndex];
+  return `
+    <section class="card">
+      <div class="kicker">${escapeHtml(step.title)}</div>
+      <div class="progressWrap">
+        <div class="progressBar"><div class="progressFill" style="width:${pct}%"></div></div>
+        <div class="progressMeta">
+          <div>${pct}% complete</div>
+          <div>${Math.min(state.stepIndex + 1, STEPS.length - 1)} / ${STEPS.length - 1}</div>
+        </div>
+      </div>
+    </section>
+  `;
+}
+
+function renderNav(){
+  const key = STEPS[state.stepIndex].key;
+  const isSubmitted = key === "submitted";
+
+  const canBack = state.stepIndex > 0 && !isSubmitted;
+  const canNext = state.stepIndex < STEPS.length - 1 && !isSubmitted;
+  const proceed = canProceed();
+
+  const isSnapshot = key === "snapshot";
+
+  return `
+    <section class="card">
+      <div class="btnrow">
+        <div class="leftBtns">
+          <button id="btnBack" class="ghost" type="button" ${canBack ? "" : "disabled"}>Back</button>
+        </div>
+
+        <div class="leftBtns">
+          ${isSnapshot ? `<button id="btnFinalSubmit" class="primary" type="button">Submit Results</button>` : ""}
+          ${!isSnapshot && !isSubmitted ? `<button id="btnNext" class="primary" type="button" ${canNext && proceed ? "" : "disabled"}>Next</button>` : ""}
+          ${isSubmitted ? `<button id="btnRestart" class="ghost" type="button">Start Over</button>` : ""}
+        </div>
+      </div>
+
+      ${(!proceed && canNext) ? `<div class="small">Complete the required items on this step to continue.</div>` : ""}
+    </section>
+  `;
+}
+
+function wireCommonHandlers(){
+  const btnBack = document.getElementById("btnBack");
+  const btnNext = document.getElementById("btnNext");
+  const btnFinalSubmit = document.getElementById("btnFinalSubmit");
+  const btnRestart = document.getElementById("btnRestart");
+
+  if (btnBack) btnBack.addEventListener("click", prevStep);
+
+  if (btnNext) btnNext.addEventListener("click", () => {
+    const k = STEPS[state.stepIndex].key;
+    if (k === "values_roadtest") computeConfirmedValues();
+    if (k === "pillars_roadtest") computePillarsOutcomes();
+    nextStep();
+  });
+
+  if (btnFinalSubmit) btnFinalSubmit.addEventListener("click", submitToDana);
+
+  if (btnRestart) btnRestart.addEventListener("click", () => {
+    state = structuredClone(DEFAULT_STATE);
+    saveState();
+    render();
+  });
+}
+
+function renderStep(key){
+  switch(key){
+    case "welcome": return stepWelcome();
+    case "define": return stepDefine();
+    case "start": return stepStart();
+    case "values_discover": return stepValuesDiscover();
+    case "values_roadtest": return stepValuesRoadtest();
+    case "pillars_discover": return stepPillarsDiscover();
+    case "pillars_roadtest": return stepPillarsRoadtest();
+    case "ideal_emotion": return stepIdealEmotion();
+    case "trigger": return stepTrigger();
+    case "snapshot": return stepSnapshot();
+    case "submitted": return stepSubmitted();
+    default: return `<section class="card"><div class="h1">Missing step</div></section>`;
+  }
+}
+
+/* ========== Steps ========== */
+
+function stepWelcome(){
+  return `
+    <section class="card">
+      <div class="h1">Welcome</div>
+      <p class="p">
+        Thank you for taking the WHO Thoughts Assessment™.
+        Take a moment to imagine what’s possible when you stay anchored in your Values,
+        operate from your best self, and recognize the thoughts that quietly pull you off course.
+      </p>
+      <p class="p">
+        When your nervous system is regulated, you are powerful. You respond instead of react.
+        You choose instead of spiral.
+      </p>
+      <p class="p">
+        Self-command isn’t about perfection — it’s about awareness. It’s about noticing when you’ve
+        drifted from your WHO and knowing how to return.
+      </p>
+      <hr class="sep" />
+      <p class="p">
+        — Dana Lynn Bernstein, PMP, PCC<br/>
+        The Conflict Resolution Coach
+      </p>
+    </section>
+  `;
+}
+
+function stepDefine(){
+  return `
+    <section class="card">
+      <div class="h1">Define Your WHO</div>
+      <p class="p">
+        Your WHO is defined by:
+        <b>Values</b> (guardrails) • <b>Pillars</b> (energy source) • <b>Ideal Emotion</b> (compass) • <b>Trigger</b> (warning signal).
+      </p>
+      <div class="snapshot">
+        <div class="snapshotBox">
+          <h3>Values — Your guardrails</h3>
+          <ul class="ul">
+            <li>Non-negotiables</li>
+            <li>When crossed, evoke emotion</li>
+          </ul>
+        </div>
+        <div class="snapshotBox">
+          <h3>Pillars — Your energy source</h3>
+          <ul class="ul">
+            <li>Core strengths at your best</li>
+            <li>Without them, you feel like a shell</li>
+          </ul>
+        </div>
+        <div class="snapshotBox">
+          <h3>Ideal Emotion — Your compass</h3>
+          <ul class="ul">
+            <li>What you want to feel daily</li>
+            <li>Guides choices and responses</li>
+          </ul>
+        </div>
+        <div class="snapshotBox">
+          <h3>Trigger — Your warning signal</h3>
+          <ul class="ul">
+            <li>“I’m not ___ enough” story</li>
+            <li>Shows up under pressure</li>
+          </ul>
+        </div>
+      </div>
+      <hr class="sep" />
+      <div class="notice">
+        Dana receives your results when you submit. If you enter an email and check consent, you’ll receive a copy too.
+      </div>
+    </section>
+  `;
+}
+
+function stepStart(){
+  return `
+    <section class="card">
+      <div class="h1">Start</div>
+
+      <label class="lbl">Your name <span class="small">(required)</span></label>
+      <input id="userName" class="txt" placeholder="Type your name" value="${escapeHtml(state.user.name)}" />
+
+      <label class="lbl">Your email <span class="small">(optional)</span></label>
+      <input id="userEmail" class="txt" placeholder="you@email.com" value="${escapeHtml(state.user.email)}" />
+
+      <div style="margin-top:12px;">
+        <label style="display:flex; gap:10px; align-items:flex-start; cursor:pointer;">
+          <input id="userConsent" type="checkbox" ${state.user.consent ? "checked" : ""} />
+          <span>
+            Email my results and bonus content. <span class="small">Email is optional.</span>
+          </span>
+        </label>
+        <div class="small">
+          If you provide an email + check consent, Dana’s system will send you a copy of your results.
+        </div>
+      </div>
+    </section>
+  `;
+}
+
+function stepValuesDiscover(){
+  const selected = state.values.candidates;
+
+  return `
+    <section class="card">
+      <div class="h1">Values</div>
+      <p class="p">
+        Two ways to uncover your Values: (1) your proudest moment, and (2) what makes you upset.
+        Build 3–6 candidate Values.
+      </p>
+
+      <div class="grid2">
+        <div>
+          <div class="h2">Prompt A: Proud Moment</div>
+          <label class="lbl">When were you most proud of yourself?</label>
+          <textarea id="proudMoment" class="ta" placeholder="Example: I accomplished...">${escapeHtml(state.values.proudMoment)}</textarea>
+
+          <label class="lbl">Why were you proud?</label>
+          <textarea id="proudWhy" class="ta" placeholder="Example: I overcame obstacles by...">${escapeHtml(state.values.proudWhy)}</textarea>
+        </div>
+
+        <div>
+          <div class="h2">Prompt B: Upset / Anger Moment</div>
+          <label class="lbl">When were you angry, frustrated, or furious?</label>
+          <textarea id="upsetMoment" class="ta" placeholder="Example: When someone said/did...">${escapeHtml(state.values.upsetMoment)}</textarea>
+
+          <label class="lbl">What exactly bothered you / why?</label>
+          <textarea id="upsetWhy" class="ta" placeholder="Example: They were not being transparent, respectful...">${escapeHtml(state.values.upsetWhy)}</textarea>
+        </div>
+      </div>
+
+      <hr class="sep" />
+
+      <div class="h2">Select 3–6 Values (tap)</div>
+      <div class="small">Or add custom. We’ll road-test next.</div>
+      <div class="pills">
+        ${VALUE_OPTIONS.map(v => pill(v, selected.includes(v))).join("")}
+      </div>
+
+      <div style="margin-top:12px;">
+        <label class="lbl">Add a candidate (press Enter)</label>
+        <input id="addValue" class="txt" placeholder="Type a Value and press Enter" />
+      </div>
+
+      <div style="margin-top:14px;">
+        <div class="h2">Current candidates</div>
+        ${renderCandidateList(selected, "values")}
+        <div class="small">Selected: ${selected.length} / 6</div>
+      </div>
+    </section>
+  `;
+}
+
+function stepValuesRoadtest(){
+  const candidates = state.values.candidates;
+
+  return `
+    <section class="card">
+      <div class="h1">Values Road Test</div>
+      <p class="p">
+        Road test each candidate.
+        <span class="small">YES = keep • NO = remove</span>
+      </p>
+
+      <div class="list" style="margin-top:12px;">
+        ${candidates.map(v => {
+          const ans = state.values.roadtestAnswers[v];
+          const yesOn = ans === true;
+          const noOn = ans === false;
+
+          return `
+            <div class="row">
+              <div>
+                <div class="name">${escapeHtml(v)}</div>
+                <div class="small">If someone violates this, do you feel upset / angry / frustrated?</div>
+              </div>
+              <div class="actions">
+                <button class="${yesOn ? "primary" : ""}" data-v-ans="yes" data-v="${escapeHtmlAttr(v)}" type="button">YES</button>
+                <button class="${noOn ? "danger" : ""}" data-v-ans="no" data-v="${escapeHtmlAttr(v)}" type="button">NO</button>
+              </div>
+            </div>
+          `;
+        }).join("")}
+      </div>
+
+      <hr class="sep" />
+
+      <div class="h2">Live results</div>
+      <div class="snapshot">
+        <div class="snapshotBox">
+          <h3>Confirmed Values</h3>
+          <ul class="ul">${liveConfirmedValues().map(li).join("") || `<li class="small">Answer YES/NO above.</li>`}</ul>
+        </div>
+        <div class="snapshotBox">
+          <h3>Practical Application</h3>
+          <ul class="ul">
+            <li>These are your guardrails.</li>
+            <li>When crossed, emotions spike.</li>
+            <li>Use them to de-escalate faster.</li>
+          </ul>
+        </div>
+      </div>
+    </section>
+  `;
+}
+
+function stepPillarsDiscover(){
+  const selected = state.pillars.candidates;
+
+  return `
+    <section class="card">
+      <div class="h1">Pillars</div>
+      <p class="p">
+        Pillars are positive core characteristics that describe you at your best (not tied to achievement).
+      </p>
+
+      <div class="h2">Prompt: Happiest / Best Self</div>
+      <label class="lbl">When were you your happiest and most YOU? (Where / with who / doing what?)</label>
+      <textarea id="bestMoment" class="ta" placeholder="Example: Hiking in the woods...">${escapeHtml(state.pillars.bestMoment)}</textarea>
+
+      <hr class="sep" />
+
+      <div class="h2">Select 3–6 Pillars (tap)</div>
+      <div class="small">Or add custom. We’ll road-test next.</div>
+      <div class="pills">
+        ${PILLAR_OPTIONS.map(p => pillPillar(p, selected.includes(p))).join("")}
+      </div>
+
+      <div style="margin-top:12px;">
+        <label class="lbl">Add Pillar candidates (press Enter)</label>
+        <input id="addPillar" class="txt" placeholder="Type a trait and press Enter" />
+      </div>
+
+      <div style="margin-top:14px;">
+        <div class="h2">Current candidates</div>
+        ${renderCandidateList(selected, "pillars")}
+        <div class="small">Selected: ${selected.length} / 6</div>
+      </div>
+    </section>
+  `;
+}
+
+function stepPillarsRoadtest(){
+  const candidates = state.pillars.candidates;
+  const remaining = candidates.filter(p => state.pillars.roadtest1[p] === false);
+
+  return `
+    <section class="card">
+      <div class="h1">Pillars Road Test</div>
+
+      <p class="p">
+        <b>Road Test 1</b>: If someone crosses this characteristic, do you get angry/frustrated/upset?
+        <br/><span class="small">YES = move to Values • NO = keep as a Pillar</span>
+      </p>
+
+      <div class="list">
+        ${candidates.map(p => {
+          const ans = state.pillars.roadtest1[p];
+          const yesOn = ans === true;
+          const noOn = ans === false;
+
+          return `
+            <div class="row">
+              <div>
+                <div class="name">${escapeHtml(p)}</div>
+                <div class="small">Road Test 1</div>
+              </div>
+              <div class="actions">
+                <button class="${yesOn ? "primary" : ""}" data-p1-ans="yes" data-p="${escapeHtmlAttr(p)}" type="button">YES</button>
+                <button class="${noOn ? "danger" : ""}" data-p1-ans="no" data-p="${escapeHtmlAttr(p)}" type="button">NO</button>
+              </div>
+            </div>
+          `;
+        }).join("")}
+      </div>
+
+      <hr class="sep" />
+
+      <p class="p">
+        <b>Road Test 2</b>: For remaining Pillars, if you took these away, would you be a shell of yourself?
+        <br/><span class="small">YES = keep • NO = remove</span>
+      </p>
+
+      <div class="list">
+        ${remaining.map(p => {
+          const ans = state.pillars.roadtest2[p];
+          const yesOn = ans === true;
+          const noOn = ans === false;
+
+          return `
+            <div class="row">
+              <div>
+                <div class="name">${escapeHtml(p)}</div>
+                <div class="small">Road Test 2</div>
+              </div>
+              <div class="actions">
+                <button class="${yesOn ? "primary" : ""}" data-p2-ans="yes" data-p="${escapeHtmlAttr(p)}" type="button">YES</button>
+                <button class="${noOn ? "danger" : ""}" data-p2-ans="no" data-p="${escapeHtmlAttr(p)}" type="button">NO</button>
+              </div>
+            </div>
+          `;
+        }).join("") || `<div class="small">Answer Road Test 1 first.</div>`}
+      </div>
+
+      <hr class="sep" />
+
+      <div class="snapshot">
+        <div class="snapshotBox">
+          <h3>Confirmed Pillars</h3>
+          <ul class="ul">${liveConfirmedPillars().map(li).join("") || `<li class="small">Answer above.</li>`}</ul>
+        </div>
+        <div class="snapshotBox">
+          <h3>Moved to Values</h3>
+          <ul class="ul">${uniq(candidates.filter(p => state.pillars.roadtest1[p] === true)).map(li).join("") || `<li class="small">Answer above.</li>`}</ul>
+        </div>
+      </div>
+    </section>
+  `;
+}
+
+function stepIdealEmotion(){
+  return `
+    <section class="card">
+      <div class="h1">Ideal Emotion</div>
+      <p class="p">
+        Your Ideal Emotion is what you want to feel each day (it’s okay to have 2).
+      </p>
+
+      <label class="lbl">Pick one (or your closest)</label>
+      <select id="idealPrimary" class="sel">
+        <option value="">Select…</option>
+        ${IDEAL_EMOTION_OPTIONS.map(o => `<option ${state.idealEmotion.primary === o ? "selected" : ""}>${escapeHtml(o)}</option>`).join("")}
+      </select>
+
+      <label class="lbl">How much do you want to feel your Ideal Emotion? (1–10)</label>
+      <input id="idealDesire" type="range" min="1" max="10" value="${state.idealEmotion.desireLevel}" style="width:100%;" />
+      <div class="small">Current: <b>${state.idealEmotion.desireLevel}/10</b> (Target: <b>8/10</b>)</div>
+
+      <label class="lbl">Second Ideal Emotion (optional)</label>
+      <select id="idealSecondary" class="sel">
+        <option value="">Select…</option>
+        ${IDEAL_EMOTION_OPTIONS.map(o => `<option ${state.idealEmotion.secondary === o ? "selected" : ""}>${escapeHtml(o)}</option>`).join("")}
+      </select>
+
+      <hr class="sep" />
+      <div class="h2">Alignment Check</div>
+      <ul class="ul">
+        <li>Which Value did I compromise?</li>
+        <li>Which Pillar am I not embodying?</li>
+        <li>Is my Trigger leading?</li>
+        <li>What action realigns me?</li>
+      </ul>
+    </section>
+  `;
+}
+
+function stepTrigger(){
+  const label = state.trigger.label;
+
+  return `
+    <section class="card">
+      <div class="h1">Trigger (Anti-WHO)</div>
+      <p class="p">
+        Pick one from the list OR add a custom one.
+      </p>
+
+      <div class="pills">
+        ${TRIGGER_OPTIONS.map(t => {
+          const full = `I'm not ${t}`;
+          const on = label === full;
+          return `<button class="pill ${on ? "on" : ""}" data-trigger="${escapeHtmlAttr(full)}" type="button">${escapeHtml(full)}</button>`;
+        }).join("")}
+      </div>
+
+      <div style="margin-top:12px;">
+        <label class="lbl">Custom trigger (optional)</label>
+        <input id="customTrigger" class="txt" placeholder="Example: I'm not safe / I'm not in control..." value="${escapeHtml(label.startsWith("I'm not ") ? "" : label)}" />
+        <div class="small">Typing here overrides the selection.</div>
+      </div>
+
+      <label class="lbl">Name how it makes you feel</label>
+      <input id="triggerFeeling" class="txt" placeholder="Example: anxious, small, demoralized..." value="${escapeHtml(state.trigger.feeling)}" />
+
+      <label class="lbl">Optional Reset Script</label>
+      <textarea id="resetScript" class="ta" placeholder="That’s my Trigger talking. I’m choosing [Pillar] and honoring [Value].">${escapeHtml(state.trigger.resetScript)}</textarea>
+    </section>
+  `;
+}
+
+function stepSnapshot(){
+  computePillarsOutcomes();
+  computeConfirmedValues();
+
+  const values = state.values.confirmed;
+  const pillars = state.pillars.confirmed;
+
+  return `
+    <section class="card">
+      <div class="h1">Your WHO Snapshot</div>
+
+      <div class="snapshot">
+        <div class="snapshotBox">
+          <h3>Values — Your guardrails</h3>
+          <ul class="ul">${values.map(li).join("") || `<li class="small">None confirmed yet.</li>`}</ul>
+        </div>
+
+        <div class="snapshotBox">
+          <h3>Pillars — Your energy source</h3>
+          <ul class="ul">${pillars.map(li).join("") || `<li class="small">None confirmed yet.</li>`}</ul>
+        </div>
+
+        <div class="snapshotBox">
+          <h3>Ideal Emotion — Your compass</h3>
+          <ul class="ul">
+            ${state.idealEmotion.primary ? `<li>${escapeHtml(state.idealEmotion.primary)} (${state.idealEmotion.desireLevel}/10)</li>` : `<li class="small">Not set.</li>`}
+            ${state.idealEmotion.secondary ? `<li>${escapeHtml(state.idealEmotion.secondary)}</li>` : ``}
+          </ul>
+        </div>
+
+        <div class="snapshotBox">
+          <h3>Trigger — your warning signal</h3>
+          <ul class="ul">
+            ${state.trigger.label ? `<li>${escapeHtml(state.trigger.label)}</li>` : `<li class="small">Not set.</li>`}
+            ${state.trigger.feeling ? `<li>Feels like: ${escapeHtml(state.trigger.feeling)}</li>` : ``}
+          </ul>
+        </div>
+      </div>
+
+      <hr class="sep" />
+
+      <div class="h2">Next Step</div>
+      <ul class="ul">
+        <li>This week, lead with: <b>${escapeHtml(values[0] || "One Value")}</b></li>
+        <li>And embody: <b>${escapeHtml(pillars[0] || "One Pillar")}</b></li>
+        <li>If your Ideal Emotion dips, check what you compromised.</li>
+      </ul>
+
+      <div class="notice" style="margin-top:12px;">
+        When you click <b>Submit Results</b>, Dana will receive your results.
+        If you provided an email + checked consent, you’ll receive a “thank you” email with your results too.
+      </div>
+    </section>
+  `;
+}
+
+function stepSubmitted(){
+  const msg = state.lastSubmit.message || "";
+  const ok = state.lastSubmit.status === "success";
+  const err = state.lastSubmit.status === "error";
+
+  return `
+    <section class="card">
+      <div class="h1">${ok ? "Submitted!" : err ? "Submission Issue" : "Submitting..."}</div>
+      <p class="p">
+        ${ok
+          ? "Your results were sent successfully."
+          : err
+            ? "We couldn’t submit your results. Try again or refresh."
+            : "Sending your results now..."}
+      </p>
+      ${msg ? `<div class="notice">${escapeHtml(msg)}</div>` : ""}
+      ${err ? `<div class="small" style="margin-top:10px;">Most common fix: Google Form entry IDs aren’t set correctly.</div>` : ""}
+    </section>
+  `;
+}
+
+/* ========== Global Events ========== */
+
+document.addEventListener("input", (e) => {
+  const id = e.target?.id;
+
+  if (id === "userName"){ state.user.name = e.target.value; saveState(); render(); }
+  if (id === "userEmail"){ state.user.email = e.target.value; saveState(); render(); }
+
+  if (id === "proudMoment"){ state.values.proudMoment = e.target.value; saveState(); }
+  if (id === "proudWhy"){ state.values.proudWhy = e.target.value; saveState(); }
+  if (id === "upsetMoment"){ state.values.upsetMoment = e.target.value; saveState(); }
+  if (id === "upsetWhy"){ state.values.upsetWhy = e.target.value; saveState(); }
+
+  if (id === "bestMoment"){ state.pillars.bestMoment = e.target.value; saveState(); }
+
+  if (id === "idealDesire"){ state.idealEmotion.desireLevel = Number(e.target.value); saveState(); render(); }
+
+  // ✅ THIS WAS THE BUG IN YOUR CURRENT FILE — fixed here:
+  if (id === "triggerFeeling"){
+    state.trigger.feeling = e.target.value;
+    saveState();
+    render();
+  }
+
+  if (id === "resetScript"){ state.trigger.resetScript = e.target.value; saveState(); }
+  if (id === "customTrigger"){
+    const v = e.target.value.trim();
+    if (v) state.trigger.label = v;
+    saveState(); render();
+  }
+});
+
+document.addEventListener("change", (e) => {
+  const id = e.target?.id;
+
+  if (id === "userConsent"){ state.user.consent = !!e.target.checked; saveState(); }
+  if (id === "idealPrimary"){ state.idealEmotion.primary = e.target.value; saveState(); render(); }
+  if (id === "idealSecondary"){ state.idealEmotion.secondary = e.target.value; saveState(); render(); }
+});
+
+document.addEventListener("click", (e) => {
+  const t = e.target;
+
+  if (t?.dataset?.value) toggleBoundedArray("values","candidates", t.dataset.value, 6);
+  if (t?.dataset?.pillar) toggleBoundedArray("pillars","candidates", t.dataset.pillar, 6);
+
+  if (t?.dataset?.removeValue){
+    const v = t.dataset.removeValue;
+    state.values.candidates = removeItem(state.values.candidates, v);
+    delete state.values.roadtestAnswers[v];
+    saveState(); render();
+  }
+  if (t?.dataset?.removePillar){
+    const p = t.dataset.removePillar;
+    state.pillars.candidates = removeItem(state.pillars.candidates, p);
+    delete state.pillars.roadtest1[p];
+    delete state.pillars.roadtest2[p];
+    saveState(); render();
+  }
+
+  if (t?.dataset?.vAns && t?.dataset?.v){
+    const v = t.dataset.v;
+    const isYes = t.dataset.vAns === "yes";
+    state.values.roadtestAnswers[v] = isYes;
+
+    if (!isYes){
+      state.values.candidates = removeItem(state.values.candidates, v);
+      delete state.values.roadtestAnswers[v];
+    }
+
+    saveState(); render();
+  }
+
+  if (t?.dataset?.p1Ans && t?.dataset?.p){
+    const p = t.dataset.p;
+    const isYes = t.dataset.p1Ans === "yes";
+    state.pillars.roadtest1[p] = isYes;
+    saveState(); render();
+  }
+
+  if (t?.dataset?.p2Ans && t?.dataset?.p){
+    const p = t.dataset.p;
+    const isYes = t.dataset.p2Ans === "yes";
+    state.pillars.roadtest2[p] = isYes;
+
+    if (!isYes){
+      state.pillars.candidates = removeItem(state.pillars.candidates, p);
+      delete state.pillars.roadtest1[p];
+      delete state.pillars.roadtest2[p];
+    }
+
+    saveState(); render();
+  }
+
+  if (t?.dataset?.trigger){
+    state.trigger.label = t.dataset.trigger;
+    saveState(); render();
+  }
+});
+
+document.addEventListener("keydown", (e) => {
+  const id = e.target?.id;
+  if (id === "addValue" && e.key === "Enter"){ e.preventDefault(); addBoundedArray("values","candidates", e.target.value, 6); }
+  if (id === "addPillar" && e.key === "Enter"){ e.preventDefault(); addBoundedArray("pillars","candidates", e.target.value, 6); }
+});
+
+/* ========== UI Helpers ========== */
+
+function renderCandidateList(list, group){
+  if (!list.length) return `<div class="small">None yet.</div>`;
+  return `
+    <div class="pills">
+      ${list.map(x => `
+        <span class="tag">
+          ${escapeHtml(x)}
+          <button class="ghost" type="button"
+            style="margin-left:8px; padding:0 6px; border-radius:10px;"
+            data-${group === "values" ? "removeValue" : "removePillar"}="${escapeHtmlAttr(x)}"
+            title="Remove">×</button>
+        </span>
+      `).join("")}
+    </div>
+  `;
+}
+
+function pill(v, on){ return `<button class="pill ${on ? "on" : ""}" data-value="${escapeHtmlAttr(v)}" type="button">${escapeHtml(v)}</button>`; }
+function pillPillar(p, on){ return `<button class="pill ${on ? "on" : ""}" data-pillar="${escapeHtmlAttr(p)}" type="button">${escapeHtml(p)}</button>`; }
+function li(x){ return `<li>${escapeHtml(x)}</li>`; }
+
+function liveConfirmedValues(){
+  const confirmed = [];
+  for (const v of state.values.candidates){
+    if (state.values.roadtestAnswers[v] === true) confirmed.push(v);
+  }
+  return uniq([...confirmed, ...(state.pillars.movedToValues || [])]);
+}
+
+function liveConfirmedPillars(){
+  const confirmed = [];
+  const remaining = state.pillars.candidates.filter(p => state.pillars.roadtest1[p] === false);
+  for (const p of remaining){
+    if (state.pillars.roadtest2[p] === true) confirmed.push(p);
+  }
+  return uniq(confirmed);
+}
+
+/* ========== Submission ========== */
+
+async function submitToDana(){
+  computePillarsOutcomes();
+  computeConfirmedValues();
+
+  state.lastSubmit = { status:"submitting", message:"Sending your results to Dana..." };
+  saveState();
+  setStep(STEPS.findIndex(s => s.key === "submitted"));
+
+  if (!GOOGLE_FORM.enabled){
+    state.lastSubmit = { status:"error", message:"GOOGLE_FORM.enabled is false." };
+    saveState(); render();
     return;
   }
 
-  stepIndex = Math.max(0, Math.min(steps.length - 1, stepIndex + delta));
-  renderStep();
-  window.scrollTo({ top: 0, behavior: "smooth" });
-}
-
-function renderStep(){
-  const step = steps[stepIndex];
-  elTitle.textContent = step.title;
-  elHint.textContent = step.hint || "";
-
-  // progress
-  const pct = Math.round(((stepIndex) / (steps.length - 1)) * 100);
-  elProgress.style.width = `${pct}%`;
-
-  // buttons
-  elBack.style.visibility = stepIndex === 0 ? "hidden" : "visible";
-  elNext.textContent = stepIndex === steps.length - 1 ? "Done" : "Next";
-
-  // body
-  elBody.innerHTML = "";
-  step.render();
-}
-
-function renderMeta(){
-  const wrap = document.createElement("div");
-
-  wrap.appendChild(field("Your name", "name", state.meta.name, "spellcheck", true));
-  wrap.appendChild(field("Your email (optional)", "email", state.meta.email, "inputmode", "email"));
-
-  const note = document.createElement("div");
-  note.className = "notice";
-  note.innerHTML = `
-    <strong>No spam.</strong> Email is optional and only used if you press <em>Email my results</em>.
-    We will not sign you up for newsletters.
-  `;
-  wrap.appendChild(note);
-
-  elBody.appendChild(wrap);
-
-  // wire
-  wrap.querySelector('input[name="name"]').addEventListener("input", (e) => {
-    state.meta.name = e.target.value;
-    saveStateDebounced();
-  });
-  wrap.querySelector('input[name="email"]').addEventListener("input", (e) => {
-    state.meta.email = e.target.value;
-    saveStateDebounced();
-  });
-}
-
-function validateMeta(){
-  const name = String(state.meta.name || "").trim();
-  if (name.length < 2) return "Add your name to continue.";
-  return true;
-}
-
-function renderMultiSelect({ key, options, allowCustom, customLabel, maxHint }){
-  const selected = new Set(state[key] || []);
-
-  const sectionTitle = document.createElement("div");
-  sectionTitle.className = "section-title";
-  sectionTitle.textContent = "Word bank (tap to add/remove)";
-  elBody.appendChild(sectionTitle);
-
-  const pills = document.createElement("div");
-  pills.className = "pills";
-  options.forEach(opt => {
-    const p = document.createElement("div");
-    p.className = "pill";
-    p.textContent = opt;
-    if (selected.has(opt)) p.classList.add("selected");
-
-    p.addEventListener("click", () => {
-      if (selected.has(opt)) selected.delete(opt);
-      else selected.add(opt);
-
-      state[key] = Array.from(selected);
-      saveStateDebounced();
-      renderStep(); // re-render to refresh selected UI + list
-    });
-
-    pills.appendChild(p);
-  });
-  elBody.appendChild(pills);
-
-  const hr = document.createElement("div");
-  hr.className = "hr";
-  elBody.appendChild(hr);
-
-  const listTitle = document.createElement("div");
-  listTitle.className = "section-title";
-  listTitle.textContent = "Selected";
-  elBody.appendChild(listTitle);
-
-  const box = document.createElement("div");
-  box.className = "result-box";
-  box.textContent = (state[key] && state[key].length) ? state[key].join(", ") : "Nothing selected yet.";
-  elBody.appendChild(box);
-
-  if (maxHint){
-    const small = document.createElement("div");
-    small.className = "small";
-    small.style.marginTop = "8px";
-    small.textContent = maxHint;
-    elBody.appendChild(small);
-  }
-
-  if (allowCustom){
-    const custom = document.createElement("div");
-    custom.className = "field";
-    custom.innerHTML = `
-      <div class="label">${customLabel}</div>
-      <div style="display:flex; gap:10px; align-items:center; flex-wrap:wrap;">
-        <input class="input" name="custom_${key}" placeholder="Type and press Add" spellcheck="true" />
-        <button class="btn" id="addCustomBtn">Add</button>
-      </div>
-      <div class="small">Tip: keep words short. One idea per word.</div>
-    `;
-    elBody.appendChild(custom);
-
-    const input = custom.querySelector(`input[name="custom_${key}"]`);
-    const btn = custom.querySelector("#addCustomBtn");
-
-    const add = () => {
-      const val = String(input.value || "").trim();
-      if (!val) return;
-      if (!selected.has(val)) selected.add(val);
-      state[key] = Array.from(selected);
-      input.value = "";
-      saveStateDebounced();
-      renderStep();
-    };
-
-    btn.addEventListener("click", add);
-    input.addEventListener("keydown", (e) => {
-      if (e.key === "Enter"){
-        e.preventDefault();
-        add();
-      }
-    });
-  }
-}
-
-function renderIdealEmotion(){
-  const sectionTitle = document.createElement("div");
-  sectionTitle.className = "section-title";
-  sectionTitle.textContent = "Emotion bank (tap to set)";
-  elBody.appendChild(sectionTitle);
-
-  const pills = document.createElement("div");
-  pills.className = "pills";
-
-  EMOTION_OPTIONS.forEach(opt => {
-    const p = document.createElement("div");
-    p.className = "pill";
-    p.textContent = opt;
-    if (state.idealEmotion === opt) p.classList.add("selected");
-
-    p.addEventListener("click", () => {
-      state.idealEmotion = opt;
-      saveStateDebounced();
-      renderStep();
-    });
-
-    pills.appendChild(p);
-  });
-
-  elBody.appendChild(pills);
-
-  const hr = document.createElement("div");
-  hr.className = "hr";
-  elBody.appendChild(hr);
-
-  const f = document.createElement("div");
-  f.className = "field";
-  f.innerHTML = `
-    <div class="label">Or write your own (recommended if none fit)</div>
-    <input class="input" name="idealEmotion" placeholder="Example: ‘Steady’ or ‘Locked-in’" spellcheck="true" />
-    <div class="small">Whatever you write here becomes your Ideal Emotion.</div>
-  `;
-  elBody.appendChild(f);
-
-  const input = f.querySelector('input[name="idealEmotion"]');
-  input.value = state.idealEmotion || "";
-
-  input.addEventListener("input", (e) => {
-    state.idealEmotion = e.target.value;
-    saveStateDebounced();
-  });
-}
-
-function renderTriggers(){
-  const wrap = document.createElement("div");
-
-  // Trigger bank helper
-  const bankTitle = document.createElement("div");
-  bankTitle.className = "section-title";
-  bankTitle.textContent = "Trigger word bank (tap to copy into the next empty trigger)";
-  wrap.appendChild(bankTitle);
-
-  const pills = document.createElement("div");
-  pills.className = "pills";
-  TRIGGER_OPTIONS.forEach(opt => {
-    const p = document.createElement("div");
-    p.className = "pill";
-    p.textContent = opt;
-    p.addEventListener("click", () => {
-      const idx = state.triggers.findIndex(t => !String(t.trigger || "").trim());
-      const target = idx === -1 ? 0 : idx;
-      state.triggers[target].trigger = opt;
-      saveStateDebounced();
-      renderStep();
-    });
-    pills.appendChild(p);
-  });
-  wrap.appendChild(pills);
-
-  const hr = document.createElement("div");
-  hr.className = "hr";
-  wrap.appendChild(hr);
-
-  state.triggers.forEach((t, i) => {
-    const block = document.createElement("div");
-    block.className = "result-box";
-    block.style.marginBottom = "10px";
-
-    block.innerHTML = `
-      <div class="field" style="margin:0;">
-        <div class="label">Trigger ${i+1}</div>
-        <input class="input" name="trigger_${i}" placeholder="What sets you off?" spellcheck="true" value="${escapeHtml(t.trigger)}" />
-      </div>
-
-      <div class="field">
-        <div class="label">Preferred response</div>
-        <textarea name="response_${i}" placeholder="What do you want to do instead?" spellcheck="true">${escapeHtml(t.response)}</textarea>
-      </div>
-    `;
-
-    wrap.appendChild(block);
-  });
-
-  const small = document.createElement("div");
-  small.className = "small";
-  small.textContent = "Spellcheck is enabled — you’ll see red underlines for typos.";
-  wrap.appendChild(small);
-
-  elBody.appendChild(wrap);
-
-  // wire inputs
-  state.triggers.forEach((_, i) => {
-    const trig = elBody.querySelector(`input[name="trigger_${i}"]`);
-    const resp = elBody.querySelector(`textarea[name="response_${i}"]`);
-
-    trig.addEventListener("input", (e) => {
-      state.triggers[i].trigger = e.target.value;
-      saveStateDebounced();
-    });
-
-    resp.addEventListener("input", (e) => {
-      state.triggers[i].response = e.target.value;
-      saveStateDebounced();
-    });
-  });
-}
-
-function validateTriggers(){
-  const anyFilled = state.triggers.some(t => String(t.trigger || "").trim() || String(t.response || "").trim());
-  if (!anyFilled) return "Add at least 1 trigger + response (even a rough one).";
-  return true;
-}
-
-function renderFood(){
-  const wrap = document.createElement("div");
-
-  const fav = document.createElement("div");
-  fav.className = "field";
-  fav.innerHTML = `
-    <div class="label">My favorite food / meal is:</div>
-    <input class="input" name="food_fav" placeholder="Example: sushi" spellcheck="true" />
-  `;
-
-  const hate = document.createElement("div");
-  hate.className = "field";
-  hate.innerHTML = `
-    <div class="label">I cannot stomach this food / consistency / beverage:</div>
-    <input class="input" name="food_hate" placeholder="Example: cottage cheese" spellcheck="true" />
-  `;
-
-  const quote = document.createElement("div");
-  quote.className = "result-box";
-  quote.innerHTML = `
-    <em>
-      The food you fill your stomach with is no different than the thoughts you fill your head with.
-      When your Trigger is loud, it is akin to eating your least favorite food, on purpose!
-    </em>
-    <div style="height:10px"></div>
-    <strong>Thought choice:</strong> When something happens that causes upset—will you lean into your
-    <strong>Pillars</strong> to respond, or choose the <strong>Trigger</strong> and react?
-  `;
-
-  wrap.appendChild(fav);
-  wrap.appendChild(hate);
-  wrap.appendChild(quote);
-
-  elBody.appendChild(wrap);
-
-  const favInput = elBody.querySelector('input[name="food_fav"]');
-  const hateInput = elBody.querySelector('input[name="food_hate"]');
-  favInput.value = state.food.favorite || "";
-  hateInput.value = state.food.hate || "";
-
-  favInput.addEventListener("input", (e) => {
-    state.food.favorite = e.target.value;
-    saveStateDebounced();
-  });
-  hateInput.addEventListener("input", (e) => {
-    state.food.hate = e.target.value;
-    saveStateDebounced();
-  });
-}
-
-function renderResults(){
-  const wrap = document.createElement("div");
-
-  const name = String(state.meta.name || "").trim();
-
-  const box = document.createElement("div");
-  box.className = "result-box";
-  box.innerHTML = `
-    <div class="kv">
-      <div class="k">Name</div>
-      <div class="v">${escapeHtml(name)}</div>
-    </div>
-
-    <div class="kv">
-      <div class="k">Values</div>
-      <div class="v">${escapeHtml((state.values || []).join(", ") || "—")}</div>
-    </div>
-
-    <div class="kv">
-      <div class="k">Pillars</div>
-      <div class="v">${escapeHtml((state.pillars || []).join(", ") || "—")}</div>
-    </div>
-
-    <div class="kv">
-      <div class="k">Ideal Emotion</div>
-      <div class="v">${escapeHtml(state.idealEmotion || "—")}</div>
-    </div>
-
-    <div class="kv">
-      <div class="k">Triggers → Responses</div>
-      <div class="v">${escapeHtml(formatTriggersPlain(state.triggers))}</div>
-    </div>
-
-    <div class="kv">
-      <div class="k">Food Check</div>
-      <div class="v">Favorite: ${escapeHtml(state.food.favorite || "—")}<br/>Hate: ${escapeHtml(state.food.hate || "—")}</div>
-    </div>
-  `;
-
-  wrap.appendChild(box);
-
-  const hr = document.createElement("div");
-  hr.className = "hr";
-  wrap.appendChild(hr);
-
-  const btnRow = document.createElement("div");
-  btnRow.style.display = "flex";
-  btnRow.style.gap = "10px";
-  btnRow.style.flexWrap = "wrap";
-
-  const copyBtn = document.createElement("button");
-  copyBtn.className = "btn";
-  copyBtn.textContent = "Copy results";
-  copyBtn.addEventListener("click", async () => {
-    try{
-      await navigator.clipboard.writeText(buildEmailBody());
-      toast("Copied.");
-    }catch{
-      toast("Copy failed (browser blocked).");
-    }
-  });
-
-  const downloadBtn = document.createElement("button");
-  downloadBtn.className = "btn";
-  downloadBtn.textContent = "Download .txt";
-  downloadBtn.addEventListener("click", () => {
-    const blob = new Blob([buildEmailBody()], { type: "text/plain;charset=utf-8" });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement("a");
-    a.href = url;
-    a.download = `WHO_${(state.meta.name || "results").replace(/\s+/g,"_")}.txt`;
-    a.click();
-    URL.revokeObjectURL(url);
-  });
-
-  const emailBtn = document.createElement("button");
-  emailBtn.className = "btn primary";
-  emailBtn.textContent = "Email my results";
-  emailBtn.addEventListener("click", () => {
-    const email = String(state.meta.email || "").trim();
-    if (!email){
-      toast("Add your email on the Start page first (optional, but required to email).");
-      stepIndex = 0;
-      renderStep();
-      return;
-    }
-    const subject = encodeURIComponent(`My WHO Results — ${state.meta.name || ""}`.trim());
-    const body = encodeURIComponent(buildEmailBody());
-    // Opens their mail app. No backend needed.
-    window.location.href = `mailto:${encodeURIComponent(email)}?subject=${subject}&body=${body}`;
-  });
-
-  const resetBtn = document.createElement("button");
-  resetBtn.className = "btn ghost";
-  resetBtn.textContent = "Reset";
-  resetBtn.addEventListener("click", () => {
-    if (!confirm("Reset everything on this device?")) return;
-    localStorage.removeItem(STORAGE_KEY);
-    state = loadState(true);
-    stepIndex = 0;
-    applyFontScale(state.fontScale ?? 1);
-    renderStep();
-  });
-
-  btnRow.appendChild(copyBtn);
-  btnRow.appendChild(downloadBtn);
-  btnRow.appendChild(emailBtn);
-  btnRow.appendChild(resetBtn);
-
-  wrap.appendChild(btnRow);
-
-  const note = document.createElement("div");
-  note.className = "small";
-  note.style.marginTop = "10px";
-  note.textContent = "Note: Email uses your device’s mail app (mailto). For true auto-send email, we’d need a simple backend service.";
-  wrap.appendChild(note);
-
-  elBody.appendChild(wrap);
-}
-
-function field(labelText, name, value, attr, attrVal){
-  const d = document.createElement("div");
-  d.className = "field";
-  const label = document.createElement("div");
-  label.className = "label";
-  label.textContent = labelText;
-
-  const input = document.createElement("input");
-  input.className = "input";
-  input.name = name;
-  input.value = value || "";
-  input.spellcheck = true;
-  if (attr) input.setAttribute(attr, attrVal);
-
-  d.appendChild(label);
-  d.appendChild(input);
-  return d;
-}
-
-function buildEmailBody(){
-  const lines = [];
-  lines.push(`WHO RESULTS`);
-  lines.push(`Name: ${state.meta.name || ""}`);
-  lines.push(``);
-  lines.push(`VALUES:`);
-  lines.push(`- ${(state.values || []).join(", ")}`);
-  lines.push(``);
-  lines.push(`PILLARS:`);
-  lines.push(`- ${(state.pillars || []).join(", ")}`);
-  lines.push(``);
-  lines.push(`IDEAL EMOTION:`);
-  lines.push(`- ${state.idealEmotion || ""}`);
-  lines.push(``);
-  lines.push(`TRIGGERS → RESPONSES:`);
-  (state.triggers || []).forEach((t, i) => {
-    const trig = String(t.trigger || "").trim();
-    const resp = String(t.response || "").trim();
-    if (!trig && !resp) return;
-    lines.push(`${i+1}) Trigger: ${trig}`);
-    lines.push(`   Response: ${resp}`);
-  });
-  lines.push(``);
-  lines.push(`FOOD CHECK:`);
-  lines.push(`Favorite: ${state.food.favorite || ""}`);
-  lines.push(`Hate: ${state.food.hate || ""}`);
-  lines.push(``);
-  lines.push(`—`);
-  lines.push(`Generated via ${MAIN_SITE}`);
-  return lines.join("\n");
-}
-
-function formatTriggersPlain(trigs){
-  const parts = [];
-  (trigs || []).forEach((t, i) => {
-    const trig = String(t.trigger || "").trim();
-    const resp = String(t.response || "").trim();
-    if (!trig && !resp) return;
-    parts.push(`${i+1}) ${trig || "—"} → ${resp || "—"}`);
-  });
-  return parts.length ? parts.join("\n") : "—";
-}
-
-function saveState(){
   try{
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
-  }catch(e){
-    console.warn("Save failed", e);
-  }
-}
-
-let saveTimer = null;
-function saveStateDebounced(){
-  clearTimeout(saveTimer);
-  saveTimer = setTimeout(saveState, 250);
-}
-
-function loadState(reset = false){
-  if (reset) return structuredClone(DEFAULTS);
-  try{
-    const raw = localStorage.getItem(STORAGE_KEY);
-    if (!raw) return structuredClone(DEFAULTS);
-    const parsed = JSON.parse(raw);
-    return {
-      ...structuredClone(DEFAULTS),
-      ...parsed,
-      meta: { ...DEFAULTS.meta, ...(parsed.meta || {}) },
-      food: { ...DEFAULTS.food, ...(parsed.food || {}) },
-      triggers: Array.isArray(parsed.triggers) ? parsed.triggers : structuredClone(DEFAULTS.triggers),
+    await postToGoogleForm(buildPayload());
+    state.lastSubmit = {
+      status:"success",
+      message:"Done. If you provided an email + checked consent, you’ll receive your results email shortly."
     };
-  }catch{
-    return structuredClone(DEFAULTS);
+    saveState(); render();
+  }catch(err){
+    console.warn(err);
+    state.lastSubmit = {
+      status:"error",
+      message:"Submission failed. Check Google Form URL + entry IDs in app.js."
+    };
+    saveState(); render();
   }
 }
 
-function toast(msg){
-  // simple no-library toast
-  const t = document.createElement("div");
-  t.textContent = msg;
-  t.style.position = "fixed";
-  t.style.left = "50%";
-  t.style.bottom = "20px";
-  t.style.transform = "translateX(-50%)";
-  t.style.background = "rgba(10,30,20,.92)";
-  t.style.color = "white";
-  t.style.padding = "10px 14px";
-  t.style.borderRadius = "12px";
-  t.style.fontWeight = "800";
-  t.style.zIndex = "9999";
-  document.body.appendChild(t);
-  setTimeout(() => t.remove(), 1600);
+function buildPayload(){
+  return {
+    name: state.user.name.trim(),
+    email: state.user.email.trim(),
+    consent: !!state.user.consent,
+
+    confirmedValues: (state.values.confirmed || []).join(", "),
+    confirmedPillars: (state.pillars.confirmed || []).join(", "),
+    movedToValues: (state.pillars.movedToValues || []).join(", "),
+
+    idealEmotionPrimary: state.idealEmotion.primary || "",
+    idealEmotionSecondary: state.idealEmotion.secondary || "",
+    idealEmotionDesire: String(state.idealEmotion.desireLevel || 0),
+    idealEmotionTarget: "8",
+
+    trigger: state.trigger.label || "",
+    triggerFeeling: state.trigger.feeling || "",
+    resetScript: state.trigger.resetScript || ""
+  };
 }
 
-function escapeHtml(str){
-  return String(str ?? "")
+async function postToGoogleForm(p){
+  const fd = new FormData();
+  fd.append(GOOGLE_FORM.entry.name, p.name);
+  fd.append(GOOGLE_FORM.entry.email, p.email);
+  fd.append(GOOGLE_FORM.entry.consent, p.consent ? "Yes" : "No");
+
+  fd.append(GOOGLE_FORM.entry.confirmedValues, p.confirmedValues);
+  fd.append(GOOGLE_FORM.entry.confirmedPillars, p.confirmedPillars);
+  fd.append(GOOGLE_FORM.entry.movedToValues, p.movedToValues);
+
+  fd.append(GOOGLE_FORM.entry.idealEmotionPrimary, p.idealEmotionPrimary);
+  fd.append(GOOGLE_FORM.entry.idealEmotionSecondary, p.idealEmotionSecondary);
+  fd.append(GOOGLE_FORM.entry.idealEmotionDesire, p.idealEmotionDesire);
+  fd.append(GOOGLE_FORM.entry.idealEmotionTarget, p.idealEmotionTarget);
+
+  fd.append(GOOGLE_FORM.entry.trigger, p.trigger);
+  fd.append(GOOGLE_FORM.entry.triggerFeeling, p.triggerFeeling);
+  fd.append(GOOGLE_FORM.entry.resetScript, p.resetScript);
+
+  await fetch(GOOGLE_FORM.formResponseUrl, { method:"POST", mode:"no-cors", body: fd });
+}
+
+/* ========== HTML escaping ========== */
+
+function escapeHtml(s){
+  return String(s ?? "")
     .replaceAll("&","&amp;")
     .replaceAll("<","&lt;")
     .replaceAll(">","&gt;")
     .replaceAll('"',"&quot;")
     .replaceAll("'","&#039;");
 }
+function escapeHtmlAttr(s){ return escapeHtml(s).replaceAll("\n"," "); }
+
+// Initial paint
+render();
+
+
